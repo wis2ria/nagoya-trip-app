@@ -31,7 +31,7 @@ try {
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- GEMINI API SETUP (多模型自動備援系統) ---
-const USER_API_KEY = "AIzaSyCur4ftJI6cQ_0HTjfkFd1lfKfH8dLQHwE"; 
+const USER_API_KEY = "AIzaSyDhrZIB7qCl6h_qb2XfTsbDuIGkfavforY"; 
 
 // 統一的智慧型 Fetch 函數，自動切換不同模型與環境，徹底防 404 當機
 const fetchGemini = async (prompt, useJson = false, retries = 3) => {
