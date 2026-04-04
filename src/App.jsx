@@ -31,7 +31,7 @@ try {
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- GEMINI API SETUP ---
-const apiKey = "AIzaSyCur4ftJI6cQ_0HTjfkFd1lfKfH8dLQHwE"; 
+const apiKey = ""; 
 const callGeminiAPI = async (prompt, retries = 5) => {
   const delays = [1000, 2000, 4000, 8000, 16000];
   for (let i = 0; i <= retries; i++) {
@@ -683,18 +683,11 @@ const ItineraryView = ({
 
   // UI Helper: 精緻低調的新增按鈕
   const InlineAddButton = ({ insertIdx }) => (
-    <div className="relative flex items-center gap-4 z-10 group cursor-pointer my-1" onClick={() => openEditModal(null, null, insertIdx)}>
-      <div className="w-12 flex justify-center flex-shrink-0 relative">
-        <div className="bg-[#FAF9F6] py-2 z-10">
-          <div className="w-7 h-7 rounded-full bg-white border-2 border-purple-200 text-purple-400 flex items-center justify-center group-hover:border-[#773690] group-hover:text-[#773690] group-hover:bg-purple-50 group-hover:scale-110 transition-all shadow-sm">
-            <Plus size={16} strokeWidth={3} />
-          </div>
+    <div className="relative flex items-center justify-center z-10 group cursor-pointer py-1 my-1" onClick={() => openEditModal(null, null, insertIdx)}>
+      <div className="bg-[#FAF9F6] py-1 z-10 px-2">
+        <div className="w-6 h-6 rounded-full bg-white border-2 border-dashed border-[#A39D78]/60 text-[#A39D78] flex items-center justify-center group-hover:border-[#773690] group-hover:text-[#773690] group-hover:bg-purple-50 group-hover:scale-110 transition-all shadow-sm">
+          <Plus size={14} strokeWidth={3} />
         </div>
-      </div>
-      <div className="flex-1 opacity-80 md:opacity-0 group-hover:opacity-100 transition-opacity">
-        <span className="text-[11px] font-bold text-[#773690] bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-full shadow-sm">
-          插入新行程
-        </span>
       </div>
     </div>
   );
