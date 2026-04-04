@@ -155,7 +155,7 @@ const fetchDynamicWeather = async (retries = 3) => {
 // --- MOCK DATA ---
 const mockData = {
   "tripInfo": {
-    "title": "日本名古屋 6 天 5 夜放鬆之旅 ✈️",
+    "title": "✨ 我的專屬名古屋 6 天 5 夜放鬆之旅 ✨",
     "dates": "2026/04/21 - 2026/04/26",
     "themeColor": "#773690",
     "accentColor": "#A39D78"
@@ -683,15 +683,15 @@ const ItineraryView = ({
 
   // UI Helper: 精緻低調的新增按鈕
   const InlineAddButton = ({ insertIdx }) => (
-    <div className="relative flex items-center gap-4 z-10 group/add cursor-pointer my-1" onClick={() => openEditModal(null, null, insertIdx)}>
+    <div className="relative flex items-center gap-4 z-10 group cursor-pointer my-1" onClick={() => openEditModal(null, null, insertIdx)}>
       <div className="w-12 flex justify-center flex-shrink-0 relative">
         <div className="bg-[#FAF9F6] py-2 z-10">
-          <div className="w-6 h-6 rounded-full bg-white border-2 border-gray-200 text-gray-400 flex items-center justify-center group-hover/add:border-[#773690] group-hover/add:text-[#773690] group-hover/add:bg-purple-50 group-hover/add:scale-110 transition-all shadow-sm">
-            <Plus size={14} strokeWidth={3} />
+          <div className="w-7 h-7 rounded-full bg-white border-2 border-purple-200 text-purple-400 flex items-center justify-center group-hover:border-[#773690] group-hover:text-[#773690] group-hover:bg-purple-50 group-hover:scale-110 transition-all shadow-sm">
+            <Plus size={16} strokeWidth={3} />
           </div>
         </div>
       </div>
-      <div className="flex-1 opacity-0 group-hover/add:opacity-100 transition-opacity">
+      <div className="flex-1 opacity-80 md:opacity-0 group-hover:opacity-100 transition-opacity">
         <span className="text-[11px] font-bold text-[#773690] bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-full shadow-sm">
           插入新行程
         </span>
@@ -1914,11 +1914,26 @@ export default function App() {
   
   const [weatherData, setWeatherData] = useState(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
-  const [packingList, setPackingList] = useState(defaultPackingList);
+  
+  const getInitialPackingList = () => {
+    try {
+      const saved = localStorage.getItem('nagoya_packing');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return defaultPackingList;
+  };
+  const [packingList, setPackingList] = useState(getInitialPackingList());
   const [isListLoaded, setIsListLoaded] = useState(false);
   
   // 💾 新增行程的全域狀態與資料庫載入
-  const [itineraryData, setItineraryData] = useState(mockData.itinerary);
+  const getInitialItinerary = () => {
+    try {
+      const saved = localStorage.getItem('nagoya_itinerary');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return mockData.itinerary;
+  };
+  const [itineraryData, setItineraryData] = useState(getInitialItinerary());
   
   const [dailyJournals, setDailyJournals] = useState({});
   const [translationHistory, setTranslationHistory] = useState([]);
@@ -2004,6 +2019,7 @@ export default function App() {
   }, [user]);
 
   const updateFirestorePacking = async (newList) => {
+    try { localStorage.setItem('nagoya_packing', JSON.stringify(newList)); } catch(e) {}
     if (!user || !db) return;
     try {
       const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'packingList');
@@ -2014,6 +2030,7 @@ export default function App() {
   };
 
   const updateFirestoreItinerary = async (newData) => {
+    try { localStorage.setItem('nagoya_itinerary', JSON.stringify(newData)); } catch(e) {}
     if (!user || !db) return;
     try {
       const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'itinerary');
