@@ -30,24 +30,32 @@ try {
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// --- GEMINI API SETUP (雙環境自動適應版) ---
+// --- GEMINI API SETUP (多模型自動備援系統) ---
 const USER_API_KEY = "AIzaSyCur4ftJI6cQ_0HTjfkFd1lfKfH8dLQHwE"; 
 
-// 統一的智慧型 Fetch 函數，自動切換 Vercel/本地 與 預覽環境
+// 統一的智慧型 Fetch 函數，自動切換不同模型與環境，徹底防 404 當機
 const fetchGemini = async (prompt, useJson = false, retries = 3) => {
   const delays = [1000, 2000, 4000, 8000];
   
-  // 同時備妥兩種環境配置
+  // 準備一系列備援模型清單 (只要前面失敗，就自動嘗試下一個)
   const envConfigs = [
-    { name: 'gemini-1.5-flash', key: USER_API_KEY }, // 優先：Vercel 與本地端正式模型
-    { name: 'gemini-2.5-flash-preview-09-2025', key: "" } // 備援：右側預覽視窗專用模型
+    { name: 'gemini-1.5-flash', key: USER_API_KEY },
+    { name: 'gemini-1.5-flash-latest', key: USER_API_KEY },
+    { name: 'gemini-1.5-pro', key: USER_API_KEY },
+    { name: 'gemini-pro', key: USER_API_KEY },
+    { name: 'gemini-2.5-flash-preview-09-2025', key: "" } // 預覽環境專用
   ];
 
   for (let i = 0; i <= retries; i++) {
     for (const config of envConfigs) {
       try {
+        const isGemini1_0 = config.name === 'gemini-pro';
         const reqBody = { contents: [{ parts: [{ text: prompt }] }] };
-        if (useJson) reqBody.generationConfig = { responseMimeType: "application/json" };
+        
+        // Gemini 1.0 不支援強制的 json 模式，因此若 fallback 到 1.0 需略過此設定
+        if (useJson && !isGemini1_0) {
+          reqBody.generationConfig = { responseMimeType: "application/json" };
+        }
         
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.name}:generateContent?key=${config.key}`, {
           method: 'POST',
@@ -55,21 +63,24 @@ const fetchGemini = async (prompt, useJson = false, retries = 3) => {
           body: JSON.stringify(reqBody)
         });
 
-        // 核心：若收到 404 (代表模型不支援當前環境)，直接跳過並嘗試下一種配置，不浪費時間
-        if (response.status === 404) continue; 
-        
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+          // 如果這個模型報錯 (例如 404 或 403)，立刻無縫切換下一個模型試試看！
+          continue; 
+        }
         
         const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return text;
         
       } catch (error) {
-        console.warn(`Model ${config.name} 嘗試失敗:`, error);
+        // 發生網路錯誤，繼續嘗試下一個
+        continue;
       }
     }
+    // 如果這輪所有模型都失敗，等待幾秒後再重試
     if (i < retries) await new Promise(res => setTimeout(res, delays[i]));
   }
-  throw new Error("所有 API 嘗試皆失敗");
+  throw new Error("所有 AI 模型嘗試皆失敗");
 };
 
 const callGeminiAPI = async (prompt) => {
@@ -162,6 +173,13 @@ const mockData = {
           "duration": "Check-in", 
           "badges": [],
           "bookingInfo": "Agoda / 預訂編號：1712328365"
+        },
+        {
+          "type": "食物", 
+          "name": "車站周邊輕鬆晚餐", 
+          "description": "在名古屋車站共構的地下街或商場找間喜歡的餐廳簡單吃個晚餐，早點休息。", 
+          "duration": "約 1.5 小時", 
+          "badges": ["必吃", "放鬆"]
         }
       ]
     },
@@ -228,26 +246,41 @@ const mockData = {
            "type": "活動", "name": "入園與移動", "duration": "09:28 - 09:45", "description": "出站後，直接穿越戶外的電梯塔，沿著指標往最深處的「魔女之谷 (Valley of Witches)」入口前進。這段路程大約需要 10 到 15 分鐘。", "badges": ["步行"]
         },
         {
+           "type": "活動", "name": "魔女之谷門口待命", "duration": "09:45 - 10:00", "description": "平日園區 10:00 開門，此時抵達剛好可以跟著排隊人潮，準備成為第一批進入魔女之谷的遊客。", "badges": ["重要", "準備入園"]
+        },
+        {
            "type": "購物", "name": "魔女之谷：領取兌換券", "duration": "10:00", "description": "一進入魔女之谷，立刻鎖定「售票車 (Ticket Truck)」，領取《霍爾的移動城堡》的購票兌換券！拿到後就可以安心前往大倉庫準備 11:00 的入場了。", "badges": ["必搶", "重要"]
         },
         {
-           "type": "景點", "name": "吉卜力大倉庫", "duration": "11:00 - 13:30", "description": "準時驗票入場。直奔最熱門的「吉卜力動畫人物名場面展」拍無臉男車廂，參觀天空之城機器人兵，並在「冒險飛行團」商店採買限定紀念品。", "badges": ["必拍", "必買"]
+           "type": "活動", "name": "移動至大倉庫", "duration": "10:30 - 10:45", "description": "帶著兌換券離開魔女之谷，悠閒散步前往「吉卜力大倉庫」門口排隊，準備迎接 11:00 的專屬入場時段。", "badges": ["注意時間"]
         },
         {
-           "type": "食物", "name": "魔女之谷：飛天烤箱午餐", "duration": "13:30 - 14:30", "description": "避開尖峰去「飛天烤箱」餐廳。若人潮繞好多圈，果斷放棄！轉往熱狗攤或「古德喬麵包店」。", "badges": ["必吃", "備案提醒"]
+           "type": "景點", "name": "吉卜力大倉庫", "duration": "11:00 - 13:30", "description": "準時驗票入場。這兩個半小時完全專注於館內設施：直奔最熱門的「吉卜力動畫人物名場面展」拍無臉男車廂，參觀天空之城機器人兵、借物少女房間，並在「冒險飛行團」商店採買限定紀念品。這段時間完全不安排大倉庫內的餐飲排隊。", "badges": ["必拍", "必買"]
         },
         {
-           "type": "景點", "name": "魔女之谷：進入霍爾城堡", "duration": "14:30 - 15:30", "description": "憑當日入場券走進《霍爾的移動城堡》內部，親眼見證火惡魔卡西法的暖爐！", "badges": ["必拍", "絕景"]
+           "type": "食物", "name": "魔女之谷：飛天烤箱午餐", "duration": "13:30 - 14:30", "description": "離開大倉庫，重返魔女之谷。直奔「飛天烤箱」餐廳。此時剛好避開正午最尖峰人潮。點招牌肉餡派或魔女風鹹派。備案：若人潮繞好多圈，果斷放棄！轉往熱狗攤或「古德喬麵包店」，坐長椅吃，把時間省下來給霍爾的城堡。", "badges": ["必吃", "備案提醒"]
         },
         {
-           "type": "交通", "name": "吉卜力公園 ➔ 榮商圈", "duration": "17:00 之後", "description": "搭乘 Linimo 回到地鐵「藤丘站」後，直接轉乘東山線就可以直達「榮」站。", "badges": ["交通", "順路"]
+           "type": "景點", "name": "魔女之谷：進入霍爾城堡", "duration": "14:30 - 15:30", "description": "帶著早上的兌換券回到售票車，支付 ¥1,000 購買實體「當日入場券」。正式走進《霍爾的移動城堡》內部，親眼見證火惡魔卡西法的暖爐！參觀完後逛逛「13 魔女」商店或拍攝城堡噴煙外觀。", "badges": ["必拍", "絕景"]
+        },
+        {
+           "type": "景點", "name": "魔法之里", "duration": "15:30 - 16:15", "description": "順路前往旁邊的「魔法之里」，看一眼巨大的乙事主溜滑梯與充滿日式風情的達達拉城，感受與魔女之谷截然不同的氛圍。", "badges": ["景點"]
+        },
+        {
+           "type": "景點", "name": "青春之丘", "duration": "16:15 - 17:00", "description": "慢慢往園區出口的方向移動，傍晚時分來到靠近入口處的「青春之丘」。拍下《心之谷》中充滿復古風情的地球屋建築，在夕陽餘暉中為這趟吉卜力魔法之旅畫下完美的句點。", "badges": ["放鬆", "必拍"]
+        },
+        {
+           "type": "交通", "name": "吉卜力公園 ➔ 榮商圈", "duration": "17:00 之後", "description": "從吉卜力公園搭乘 Linimo 回到地鐵「藤丘站」後，直接轉乘地鐵東山線就可以直達「榮 (Sakae)」站。不需要繞回名古屋車站，非常順路！", "badges": ["交通", "順路"]
         },
         {
           "type": "購物",
           "name": "綠洲 21 (Oasis 21) & 榮商圈",
-          "description": "在榮商圈一帶吃晚餐。可以在宇宙船造型的玻璃屋頂上散步，欣賞名古屋電視塔夜景。",
+          "description": "傍晚抵達市區，在榮商圈一帶吃晚餐。可以在宇宙船造型的玻璃屋頂上散步，欣賞名古屋電視塔夜景。\n\n🕒 開館時間：\n• 銀河廣場 6:00～23:00 (夜間亮燈 日落～23:00)\n• 水的宇宙船 10:00～21:00\n• 商店 10:00～21:00\n• 餐廳 10:00～22:00\n• 服務店 10:00～20:00",
           "duration": "晚上",
           "badges": ["必買", "放鬆"]
+        },
+        {
+          "type": "交通", "name": "榮站 ➔ 名古屋站", "description": "抵達後，再次穿過名古屋車站的中央穿堂（櫻通口往太閣通口方向），步行約 10 分鐘回到位於西口的「名鉄イン名古屋駅新幹線口」休息。", "duration": "晚上", "badges": ["交通", "步行"]
         }
       ]
     },
@@ -259,26 +292,64 @@ const mockData = {
       "mapKeyword": "犬山城",
       "ticketGuide": {
         "title": "🎫 犬山城下町套票攻略",
-        "description": "• 購買地：名鐵有站務員的窗口。\n• 內容物：名鐵來回車票、犬山城兌換券、優惠券。",
+        "description": "• 購買地：名鐵有站務員的窗口（彌富、赤池站除外）。\n• 名古屋站服務中心：平日 10:00-19:00 / 假日 09:00-18:00。\n• 內容物：名鐵來回車票、犬山城兌換券 (需至售票口換實體票)、有樂苑折價券、優惠券 (可蓋章用 3 次)。",
         "links": [
-          { "text": "套票內容", "url": "https://www.meitetsu.co.jp/plan/campaign/detail/__icsFiles/afieldfile/2026/02/28/inuyamaticket.jpg", "type": "image" }
+          { "text": "套票內容", "url": "https://www.meitetsu.co.jp/plan/campaign/detail/__icsFiles/afieldfile/2026/02/28/inuyamaticket.jpg", "type": "image" },
+          { "text": "犬山優惠券", "url": "https://www.meitetsu.co.jp/plan/campaign/detail/__icsFiles/afieldfile/2026/02/19/2026A4tc.pdf", "type": "pdf" }
         ]
       },
       "places": [
         {
-          "type": "交通", "name": "名鐵名古屋 → 犬山遊園", "description": "08:30 從飯店出發，搭車前往犬山。出站後沿著木曾川散步約 15 分鐘。", "duration": "08:30 - 09:15", "badges": ["注意時間", "交通"]
+          "type": "交通", "name": "名鐵名古屋 → 犬山遊園", "description": "08:30 從飯店出發。08:46 於名鐵名古屋站 1 號月台搭車：\n① 排在地上「綠色線」中。\n② 確認前方「綠色牌子（往犬山）」。\n③ 電子看板找「綠色框框」的車（如往新鵜沼）。\n\n出站後尋找指標，沿著木曾川散步約 15 分鐘。", "duration": "08:30 - 09:15", "badges": ["注意時間", "交通"]
         },
         {
-          "type": "景點", "name": "三光稻荷神社 & 針綱神社", "description": "到「錢洗受付處」拿勺子舀神水清洗硬幣或紙鈔，當作錢母祈求財運亨通。", "duration": "上午", "badges": ["必拍", "放鬆"]
+          "type": "景點", "name": "三光稻荷神社 & 針綱神社", "description": "步行至天守閣途中的必經之地，人潮尚少。\n到「錢洗受付處」奉納 100 日圓，拿勺子舀神水清洗硬幣或紙鈔（建議放新台幣！），擦乾後放回錢包當作錢母祈求財運亨通。\n接著順著紅色鳥居往上，即可到達針綱神社拜殿。", "duration": "上午", "badges": ["必拍", "放鬆"],
+          "goshuins": [
+            { "name": "三光稲荷神社", "price": "500円" },
+            { "name": "猿田彦神社", "price": "500円" },
+            { "name": "針綱神社", "price": "500円" }
+          ]
         },
         {
-          "type": "景點", "name": "國寶犬山城天守閣", "description": "登上最頂層，享受木曾川微風並俯瞰城下町。", "duration": "09:30 - 11:00", "badges": ["絕景", "必拍"]
+          "type": "景點", "name": "國寶犬山城天守閣", "description": "09:00 開門，此時抵達能完美避開 10:30 後的團體客！登上最頂層，享受木曾川微風並俯瞰城下町。", "duration": "09:30 - 11:00", "badges": ["絕景", "必拍"],
+          "gojoins": [
+            { "name": "御城印", "price": "300円" },
+            { "name": "專屬御城印帳", "price": "2400円" }
+          ],
+          "extraImages": [
+            { "title": "車站步行路線", "url": "https://inuyamajo.jp/wp-content/uploads/2020/03/route-from-station-en-1.png" },
+            { "title": "三條登山路線", "url": "https://inuyamajo.jp/wp-content/uploads/2020/03/three-routes-en-1.png" }
+          ]
         },
         {
-          "type": "購物", "name": "大須商店街尋寶散策", "description": "從上前津站 8 號出口出發。沿途涵蓋平價藥妝、二手古著、次文化周邊與異國美食！", "duration": "下午", "badges": ["必買", "尋寶"]
+          "type": "食物", "name": "犬山城下町散策：山田五平餅店", "description": "這棟建築本身是日本登錄有形文化財。避開為了拍照大排長龍的鮮豔甜點，找個位子坐下，品嚐現點現烤、塗滿濃郁核桃芝麻味噌醬的傳統「五平餅」配上一杯熱茶，享受真正屬於老街的生活感。", "duration": "中午", "badges": ["必吃", "放鬆"]
         },
         {
-          "type": "景點", "name": "大須觀音寺", "openHours": "09:00 - 17:00", "description": "正式名稱為北野山真福寺寶生院，與淺草觀音、津觀音並列為日本三大觀音。", "duration": "傍晚", "badges": ["景點"]
+          "type": "交通", "name": "犬山 → 上前津", "description": "路線：犬山站 →（名鐵犬山線直通運轉）→ 上小田井站（系統切換點）→（地下鐵鶴舞線）→ 上前津站。\n免下車即可直達，非常順路方便！", "duration": "下午", "badges": ["交通", "順路"]
+        },
+        {
+          "type": "攻略", "name": "🎫 大須商店街攻略", "description": "準備進入名古屋最熱鬧的商店街！您可以搭配這份官方地圖，輕鬆找到想去的街道與店家。", "duration": "參考", "badges": ["實用地圖"],
+          "links": [
+            { "text": "大須官方地圖 (PDF)", "url": "https://osu.nagoya/images/osumap/01-02.pdf", "type": "pdf" }
+          ]
+        },
+        {
+          "type": "購物", "name": "大須商店街尋寶散策", "description": "從上前津站 8 號出口出發，建議的精華散步路線：\n新天地通 ➔ 巨大招財貓地標 ➔ 三輪神社 / 福光稲荷神社 ➔ 赤門通 ➔ 大須 3 丁目（裏大須）➔ 大須觀音通 ➔ 大須觀音寺\n\n沿途涵蓋平價藥妝、二手古著、次文化周邊與異國美食，盡情享受尋寶樂趣！", "duration": "下午", "badges": ["必買", "尋寶"]
+        },
+        {
+          "type": "景點", "name": "三輪神社", "openHours": "09:00 - 17:00", "description": "祭祀大物主神，神話中的「因幡白兔」被視為神祇使者，境內有大量兔子元素。\n以「結緣」知名，設有雕像「福兔」，據說摸摸福兔就能獲得幸福。", "duration": "傍晚", "badges": ["放鬆", "必拍"],
+          "goshuins": [
+            { "name": "三輪神社", "price": "400円" }
+          ]
+        },
+        {
+          "type": "景點", "name": "大須觀音寺", "openHours": "09:00 - 17:00", "description": "正式名稱為北野山真福寺寶生院，與淺草觀音、津觀音並列為日本三大觀音。", "duration": "傍晚", "badges": ["景點"],
+          "goshuins": [
+            { "name": "大須觀音寺", "price": "500円" }
+          ]
+        },
+        {
+          "type": "交通", "name": "大須觀音站 ➔ 名古屋站", "description": "搭乘地下鐵鶴舞線至「伏見站」，轉乘東山線回到「名古屋站」。出站後步行返回西口的新幹線口飯店休息。", "duration": "晚上", "badges": ["交通", "順路"]
         }
       ]
     },
@@ -408,6 +479,7 @@ const ItineraryView = ({
   const [journalLength, setJournalLength] = useState('短 (約50字)');
 
   // 📝 編輯模式狀態
+  const [isEditMode, setIsEditMode] = useState(false);
   const [activeMenuIdx, setActiveMenuIdx] = useState(null); 
   const [editModal, setEditModal] = useState({ isOpen: false, placeIdx: null, insertIdx: null, data: null });
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState(null); 
@@ -620,6 +692,15 @@ const ItineraryView = ({
               {currentDay.dateInfo}
             </h2>
           </div>
+
+          <div className="flex justify-end mb-3">
+            <button 
+              onClick={() => { setIsEditMode(!isEditMode); setConfirmDeleteIdx(null); }} 
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-sm ${isEditMode ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'}`}
+            >
+              {isEditMode ? <><Check size={16} /> 完成編輯</> : <><Pencil size={16} /> 編輯行程</>}
+            </button>
+          </div>
           
           <div className="flex flex-col gap-2 text-sm text-gray-600">
             {isLoadingWeather ? (
@@ -723,7 +804,7 @@ const ItineraryView = ({
                     {getIconForType(place.type, "")}
                   </div>
 
-                  <div className={`flex-1 rounded-2xl p-5 shadow-sm border transition-all hover:shadow-md bg-white ${isStrategy ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-100' : 'border-gray-100'}`}>
+                  <div className={`flex-1 rounded-2xl p-5 shadow-sm border transition-all ${isEditMode ? 'ring-2 ring-purple-100 bg-gray-50' : 'hover:shadow-md bg-white'} ${isStrategy ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-100' : 'border-gray-100'}`}>
                     <div className="flex justify-between items-start mb-2 relative">
                       <h3 className={`font-bold text-lg leading-tight ${isStrategy ? 'text-orange-800 flex items-center gap-1.5' : 'text-gray-800'}`}>
                         {isStrategy && <MapIcon size={18} />}
@@ -893,7 +974,7 @@ const ItineraryView = ({
                     )}
 
                     {/* 一般模式：導覽與 AI 探索按鈕 */}
-                    {!isStrategy && (
+                    {!isStrategy && !isEditMode && (
                       <div className="flex gap-2 pt-2 border-t border-gray-50 flex-wrap">
                         <a 
                           href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(place.name)}`}
@@ -914,6 +995,27 @@ const ItineraryView = ({
                       </div>
                     )}
 
+                    {/* 編輯模式：專屬底部編輯控制列 (防呆刪除機制 + 加大觸控範圍) */}
+                    {isEditMode && (
+                      <div className={`flex items-center justify-between mt-4 pt-3 border-t ${isStrategy ? 'border-orange-200' : 'border-purple-100/50'}`}>
+                        <div className="flex gap-2">
+                          <button onClick={() => movePlace(idx, -1)} disabled={idx === 0} className="p-2.5 rounded-xl bg-white text-gray-500 hover:bg-gray-100 border border-gray-200 shadow-sm disabled:opacity-30"><ChevronUp size={18}/></button>
+                          <button onClick={() => movePlace(idx, 1)} disabled={idx === currentDay.places.length - 1} className="p-2.5 rounded-xl bg-white text-gray-500 hover:bg-gray-100 border border-gray-200 shadow-sm disabled:opacity-30"><ChevronDown size={18}/></button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => openEditModal(idx, place)} className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 shadow-sm border border-blue-100"><Pencil size={18}/></button>
+                          <button onClick={() => duplicatePlace(idx)} className="p-2.5 rounded-xl bg-green-50 text-green-600 hover:bg-green-100 shadow-sm border border-green-100"><Copy size={18}/></button>
+                          {confirmDeleteIdx === idx ? (
+                            <button onClick={() => deletePlace(idx)} className="px-3 py-2.5 rounded-xl bg-red-500 text-white font-bold text-xs hover:bg-red-600 shadow-sm flex items-center gap-1.5 animate-in slide-in-from-right-2">
+                              <Trash2 size={14}/> 確定刪除?
+                            </button>
+                          ) : (
+                            <button onClick={() => setConfirmDeleteIdx(idx)} className="p-2.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 shadow-sm border border-red-100"><Trash2 size={18}/></button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 </div>
 
@@ -922,6 +1024,18 @@ const ItineraryView = ({
               </React.Fragment>
             );
           })}
+          
+          {/* 編輯模式下的大按鈕：新增行程 */}
+          {isEditMode && (
+            <div className="relative flex items-center justify-center gap-4 z-0 mt-4">
+              <button 
+                onClick={() => openEditModal()}
+                className="w-full bg-white border-2 border-dashed border-purple-200 text-[#773690] py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-purple-50 transition-colors shadow-sm"
+              >
+                <Plus size={20} /> 新增行程卡片
+              </button>
+            </div>
+          )}
         </div>
 
         {/* AI Daily Journal Generator UI */}
