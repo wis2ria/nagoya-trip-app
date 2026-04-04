@@ -31,12 +31,12 @@ try {
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- GEMINI API SETUP ---
-const apiKey = ""; 
+const apiKey = "AIzaSyCur4ftJI6cQ_0HTjfkFd1lfKfH8dLQHwE"; 
 const callGeminiAPI = async (prompt, retries = 5) => {
   const delays = [1000, 2000, 4000, 8000, 16000];
   for (let i = 0; i <= retries; i++) {
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,7 +130,7 @@ const fetchDynamicWeather = async (retries = 3) => {
   const delays = [1000, 2000, 4000];
   for (let i = 0; i <= retries; i++) {
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -683,10 +683,14 @@ const ItineraryView = ({
 
   // UI Helper: 精緻低調的新增按鈕
   const InlineAddButton = ({ insertIdx }) => (
-    <div className="relative flex items-center justify-center z-10 group cursor-pointer py-1 my-1" onClick={() => openEditModal(null, null, insertIdx)}>
-      <div className="bg-[#FAF9F6] py-1 z-10 px-2">
-        <div className="w-6 h-6 rounded-full bg-white border-2 border-dashed border-[#A39D78]/60 text-[#A39D78] flex items-center justify-center group-hover:border-[#773690] group-hover:text-[#773690] group-hover:bg-purple-50 group-hover:scale-110 transition-all shadow-sm">
-          <Plus size={14} strokeWidth={3} />
+    <div className="relative flex items-center z-10 group cursor-pointer -my-2" onClick={() => openEditModal(null, null, insertIdx)}>
+      {/* w-12 保證與行程圓形圖示寬度一致，讓加號完美置中於紫色線上 */}
+      <div className="w-12 flex justify-center flex-shrink-0">
+        {/* 背景色用來遮擋後方的線段，產生留白呼吸感 */}
+        <div className="bg-[#FAF9F6] py-1.5 z-10">
+          <div className="w-6 h-6 rounded-full bg-white border-2 border-dashed border-[#A39D78]/60 text-[#A39D78] flex items-center justify-center group-hover:border-[#773690] group-hover:text-[#773690] group-hover:bg-purple-50 group-hover:scale-110 transition-all shadow-sm">
+            <Plus size={14} strokeWidth={3} />
+          </div>
         </div>
       </div>
     </div>
@@ -819,7 +823,8 @@ const ItineraryView = ({
 
             return (
               <React.Fragment key={idx}>
-                <div className="relative flex items-start gap-4 z-0 group py-2">
+                {/* 確保點開選單的卡片層級為 z-[60]，絕對不會被下方的卡片遮擋 */}
+                <div className={`relative flex items-start gap-4 group py-2 ${activeMenuIdx === idx ? 'z-[60]' : 'z-0'}`}>
                   <div className={`relative z-10 flex-shrink-0 w-12 h-12 rounded-full bg-white border-2 ${isStrategy ? 'border-orange-400 text-orange-500' : 'border-[#773690] text-[#773690]'} shadow-sm flex items-center justify-center transition-colors`}>
                     {getIconForType(place.type, "")}
                   </div>
@@ -831,11 +836,11 @@ const ItineraryView = ({
                         {place.name}
                       </h3>
 
-                      {/* 右上角的三個點選單 */}
+                      {/* 右上角的三個點選單 (加大觸控範圍，方便手機點擊) */}
                       <div className="relative">
                         <button
                           onClick={(e) => { e.stopPropagation(); setActiveMenuIdx(activeMenuIdx === idx ? null : idx); setConfirmDeleteIdx(null); }}
-                          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                          className="p-2 -mr-2 -mt-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
                         >
                           <MoreVertical size={20} />
                         </button>
@@ -1371,7 +1376,7 @@ const GuideView = ({
 }`;
 
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
