@@ -347,43 +347,76 @@ const getDocColorClass = (iconName) => {
 
 // --- MAIN VIEWS ---
 
-const ScrollToTopButton = ({ activeTab }) => {
-  const [isVisible, setIsVisible] = useState(false);
+const ScrollButtons = ({ activeTab }) => {
+  const [showTop, setShowTop] = useState(false);
+  const [showBottom, setShowBottom] = useState(false);
 
   useEffect(() => {
-    // 每次切換分頁時，先將按鈕隱藏重置
-    setIsVisible(false);
+    // 每次切換分頁時，先將按鈕隱藏重置，並稍後重新計算是否需要顯示
+    setShowTop(false);
+    setShowBottom(false);
+    
+    const timer = setTimeout(() => {
+      const container = document.getElementById('scroll-container');
+      if (container) {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        setShowTop(scrollTop > 150);
+        setShowBottom(scrollHeight > clientHeight && (scrollHeight - scrollTop - clientHeight > 150));
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [activeTab]);
 
   useEffect(() => {
     const handleScroll = (e) => {
       const target = e.target;
-      // 改用 100% 準確的全域攔截，並將門檻大幅降低至 150px，稍微往下滑就會出現！
       if (target && target.id === 'scroll-container') {
-        setIsVisible(target.scrollTop > 150);
+        const { scrollTop, scrollHeight, clientHeight } = target;
+        
+        // 向下捲動超過 150px 顯示「回頂部」
+        setShowTop(scrollTop > 150);
+        
+        // 內容高度大於視窗，且距離底部超過 150px 時顯示「到底部」
+        setShowBottom(scrollHeight > clientHeight && (scrollHeight - scrollTop - clientHeight > 150));
       }
     };
 
-    // 使用 capture 階段攔截所有捲動事件，絕不漏接
     window.addEventListener('scroll', handleScroll, true);
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, []);
 
   return (
-    <button
-      onClick={() => {
-        const container = document.getElementById('scroll-container');
-        container?.scrollTo({ top: 0, behavior: 'smooth' });
-      }}
-      className={`absolute bottom-6 right-5 z-[100] p-3 rounded-full bg-[#773690] text-white shadow-lg transition-all duration-300 ${
-        isVisible 
-          ? 'opacity-40 hover:opacity-70 active:opacity-70 translate-y-0 pointer-events-auto' 
-          : 'opacity-0 translate-y-4 pointer-events-none'
-      }`}
-      aria-label="回到頂部"
-    >
-      <ChevronUp size={24} strokeWidth={2.5} />
-    </button>
+    <div className="absolute bottom-6 right-5 z-[100] flex flex-col gap-3 pointer-events-none">
+      <button
+        onClick={() => {
+          const container = document.getElementById('scroll-container');
+          container?.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        className={`p-3 rounded-full bg-[#773690] text-white shadow-lg transition-all duration-300 ${
+          showTop 
+            ? 'opacity-40 hover:opacity-70 active:opacity-70 translate-y-0 pointer-events-auto' 
+            : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}
+        aria-label="回到頂部"
+      >
+        <ChevronUp size={24} strokeWidth={2.5} />
+      </button>
+      
+      <button
+        onClick={() => {
+          const container = document.getElementById('scroll-container');
+          container?.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        }}
+        className={`p-3 rounded-full bg-[#773690] text-white shadow-lg transition-all duration-300 ${
+          showBottom 
+            ? 'opacity-40 hover:opacity-70 active:opacity-70 translate-y-0 pointer-events-auto' 
+            : 'opacity-0 -translate-y-4 pointer-events-none'
+        }`}
+        aria-label="直接到底部"
+      >
+        <ChevronDown size={24} strokeWidth={2.5} />
+      </button>
+    </div>
   );
 };
 
@@ -1632,7 +1665,7 @@ export default function App() {
                 isLoadingWeather={isLoadingWeather} 
               />
             )}
-            <ScrollToTopButton activeTab={activeTab} />
+            <ScrollButtons activeTab={activeTab} />
           </main>
 
           <nav className="flex-shrink-0 w-full bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-20 pb-[env(safe-area-inset-bottom)] relative">
